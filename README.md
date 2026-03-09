@@ -2,8 +2,6 @@
 The repository is created for the final Project for MAP 673 course
 
 # Urban Tree Phenophase Explorer
-Interactive map 
- http://127.0.0.1:5501/index.html
 
 GitHub Pages
 https://kmnafee.github.io/Mod8FinalProject/
@@ -55,9 +53,9 @@ The objective of the map is to present the phenological data in an interactive f
 
 The project was developed using a combination of web mapping and JavaScript libraries. These were
 
-### HTML5
+### HTML
 
-### CSS3
+### CSS
 
 ### JavaScript
 
