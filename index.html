@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Urban Tree Phenophase Explorer</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/shpjs@latest/dist/shp.min.js"></script>
+
+  <style>
+    :root{
+      --brand:#1f5a3b;
+      --brand-dark:#163f2a;
+      --accent:#d8eadf;
+      --bg:#f4f6f5;
+      --panel:#fbfcfb;
+      --border:#dfe5e1;
+      --text:#18211b;
+      --muted:#5b675f;
+      --shadow:0 12px 28px rgba(0,0,0,0.08);
+      --radius:18px;
+    }
+
+    * { box-sizing:border-box; }
+
+    html, body{
+      margin:0;
+      height:100%;
+      font-family:"Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:var(--bg);
+    }
+
+    body{
+      display:flex;
+      flex-direction:column;
+    }
+
+    .site-header{
+      background:linear-gradient(135deg, var(--brand-dark), var(--brand));
+      color:#fff;
+      padding:18px 20px 16px;
+      box-shadow:0 2px 10px rgba(0,0,0,0.12);
+      z-index:1000;
+    }
+
+    .site-header-inner{
+      max-width:1600px;
+      margin:0 auto;
+    }
+
+    .site-title{
+      margin:0;
+      font-family:"Playfair Display", Georgia, serif;
+      font-size:1.95rem;
+      font-weight:700;
+      line-height:1.15;
+      letter-spacing:0.2px;
+    }
+
+    .site-subtitle{
+      margin:7px 0 0;
+      max-width:1100px;
+      font-size:0.98rem;
+      line-height:1.45;
+      color:rgba(255,255,255,0.92);
+    }
+
+    .site-meta{
+      margin-top:12px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+    }
+
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      padding:6px 12px;
+      border-radius:999px;
+      background:rgba(255,255,255,0.12);
+      border:1px solid rgba(255,255,255,0.22);
+      font-size:0.83rem;
+      font-weight:600;
+      color:#fff;
+      backdrop-filter:blur(6px);
+    }
+
+    .app{
+      flex:1;
+      display:grid;
+      grid-template-columns:350px minmax(0, 1fr) 380px;
+      gap:14px;
+      padding:14px;
+      min-height:0;
+      max-width:1700px;
+      width:100%;
+      margin:0 auto;
+    }
+
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:auto;
+      min-height:0;
+    }
+
+    .panel-inner{
+      padding:16px;
+    }
+
+    .panel-title{
+      margin:0 0 6px;
+      font-size:1.05rem;
+      font-weight:800;
+    }
+
+    .panel-note{
+      margin:0;
+      color:var(--muted);
+      font-size:0.93rem;
+      line-height:1.45;
+    }
+
+    .card-block{
+      margin-top:14px;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:14px;
+    }
+
+    .card-block h6{
+      margin:0 0 8px;
+      font-weight:800;
+      font-size:0.95rem;
+    }
+
+    .btn-group .btn{
+      font-weight:600;
+    }
+
+    .btn-outline-success{
+      --bs-btn-color: var(--brand);
+      --bs-btn-border-color: #89af98;
+      --bs-btn-hover-bg: var(--brand);
+      --bs-btn-hover-border-color: var(--brand);
+      --bs-btn-active-bg: var(--brand);
+      --bs-btn-active-border-color: var(--brand);
+      --bs-btn-active-color: #fff;
+    }
+
+    .form-control:focus{
+      border-color:#7ba28a;
+      box-shadow:0 0 0 0.2rem rgba(31,90,59,0.15);
+    }
+
+    .map-shell{
+      position:relative;
+      min-height:0;
+      border-radius:var(--radius);
+      overflow:hidden;
+      border:1px solid var(--border);
+      box-shadow:var(--shadow);
+      background:#dce5e0;
+    }
+
+    #map{
+      width:100%;
+      height:100%;
+      min-height:640px;
+    }
+
+    .map-toolbar{
+      position:absolute;
+      top:14px;
+      left:14px;
+      z-index:600;
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      max-width:calc(100% - 28px);
+    }
+
+    .toolbar-btn{
+      border:none;
+      border-radius:12px;
+      background:rgba(255,255,255,0.94);
+      color:var(--text);
+      padding:9px 12px;
+      font-size:0.9rem;
+      font-weight:700;
+      box-shadow:0 4px 14px rgba(0,0,0,0.12);
+      cursor:pointer;
+    }
+
+    .toolbar-btn:hover{
+      background:#fff;
+    }
+
+    .map-credit{
+      position:absolute;
+      right:14px;
+      bottom:14px;
+      z-index:600;
+      background:rgba(255,255,255,0.94);
+      border-radius:12px;
+      padding:8px 10px;
+      box-shadow:0 4px 14px rgba(0,0,0,0.12);
+      font-size:0.82rem;
+      color:var(--muted);
+      max-width:360px;
+      line-height:1.35;
+    }
+
+    .map-credit a{
+      color:var(--brand);
+      text-decoration:none;
+      font-weight:700;
+    }
+
+    .legend-scale{
+      max-height:290px;
+      overflow:auto;
+      padding-right:4px;
+    }
+
+    .legend-row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:4px 0;
+      font-size:0.92rem;
+    }
+
+    .legend-swatch{
+      width:18px;
+      height:18px;
+      border-radius:5px;
+      border:1px solid rgba(0,0,0,0.2);
+      flex-shrink:0;
+    }
+
+    .metrics-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-top:10px;
+    }
+
+    .metric{
+      background:#f7faf8;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:10px;
+    }
+
+    .metric-label{
+      font-size:0.77rem;
+      font-weight:800;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.4px;
+      margin-bottom:4px;
+    }
+
+    .metric-value{
+      font-size:1rem;
+      font-weight:800;
+      color:var(--text);
+    }
+
+    .status-box{
+      background:#f8fbf9;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+      font-size:0.92rem;
+      line-height:1.45;
+      color:var(--muted);
+    }
+
+    .mini-list{
+      margin:0;
+      padding-left:18px;
+      color:var(--muted);
+      font-size:0.92rem;
+      line-height:1.5;
+    }
+
+    .leaflet-popup-content-wrapper{
+      border-radius:14px;
+    }
+
+    .leaflet-popup-content{
+      margin:12px 14px;
+      font-family:"Inter", sans-serif;
+      line-height:1.45;
+    }
+
+    .popup-title{
+      font-weight:800;
+      font-size:1rem;
+      margin-bottom:4px;
+      color:var(--brand-dark);
+    }
+
+    .loading-overlay{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(255,255,255,0.8);
+      z-index:700;
+      font-weight:700;
+      color:var(--brand-dark);
+      backdrop-filter:blur(3px);
+    }
+
+    .hidden{
+      display:none !important;
+    }
+
+    .empty-state{
+      color:var(--muted);
+      font-size:0.94rem;
+      line-height:1.5;
+    }
+
+    .footer-note{
+      margin-top:14px;
+      font-size:0.85rem;
+      color:var(--muted);
+      line-height:1.45;
+    }
+
+    .footer-note a{
+      color:var(--brand);
+      text-decoration:none;
+      font-weight:700;
+    }
+
+    @media (max-width: 1280px){
+      .app{
+        grid-template-columns:320px minmax(0, 1fr);
+      }
+      .panel-right{
+        display:none;
+      }
+    }
+
+    @media (max-width: 840px){
+      .site-title{
+        font-size:1.55rem;
+      }
+      .site-subtitle{
+        font-size:0.92rem;
+      }
+      .app{
+        grid-template-columns:1fr;
+      }
+      .panel-left{
+        order:2;
+      }
+      .map-shell{
+        order:1;
+      }
+      #map{
+        min-height:520px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <h1 class="site-title">Urban Tree Phenophase Explorer</h1>
+      <p class="site-subtitle">
+        An interactive map of species-level phenophase transitions for urban trees on the University of Kentucky campus in Lexington, Kentucky. Tree polygons are linked to phenology records from 2023–2025 using <strong>TARGET_FID</strong>.
+      </p>
+      <div class="site-meta">
+        <span class="chip">Final Project</span>
+        <span class="chip">UK Campus</span>
+        <span class="chip">2023–2025</span>
+        <span class="chip">Species-level Phenology</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="app">
+    <aside class="panel panel-left">
+      <div class="panel-inner">
+        <h2 class="panel-title">Map Controls</h2>
+        <p class="panel-note">
+          Explore tree polygons by species and switch between years to view phenophase timing in the information panel.
+        </p>
+
+        <div class="card-block">
+          <h6>Year Selection</h6>
+          <div class="btn-group w-100" role="group" aria-label="Year Toggle">
+            <input type="radio" class="btn-check" name="year" id="y2023" value="2023" autocomplete="off" checked>
+            <label class="btn btn-outline-success" for="y2023">2023</label>
+
+            <input type="radio" class="btn-check" name="year" id="y2024" value="2024" autocomplete="off">
+            <label class="btn btn-outline-success" for="y2024">2024</label>
+
+            <input type="radio" class="btn-check" name="year" id="y2025" value="2025" autocomplete="off">
+            <label class="btn btn-outline-success" for="y2025">2025</label>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <h6>Search by Species</h6>
+          <input id="speciesSearch" type="text" class="form-control" placeholder="Type a species name, e.g., Sugar Maple">
+          <div class="d-grid mt-2">
+            <button id="clearSearchBtn" class="btn btn-sm btn-outline-secondary">Clear Search</button>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <h6>Project Summary</h6>
+          <div class="metrics-grid">
+            <div class="metric">
+              <div class="metric-label">Total Trees</div>
+              <div class="metric-value" id="metricTotal">–</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Visible Trees</div>
+              <div class="metric-value" id="metricVisible">–</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Species</div>
+              <div class="metric-value" id="metricSpecies">–</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Selected Year</div>
+              <div class="metric-value" id="metricYear">2023</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-block">
+          <h6>Species Legend</h6>
+          <p class="panel-note" style="margin-bottom:10px;">
+            Polygon fill colors represent species categories.
+          </p>
+          <div id="dynamicLegend" class="legend-scale"></div>
+        </div>
+
+        <div class="card-block">
+          <h6>Method</h6>
+          <ul class="mini-list">
+            <li>Tree polygons are linked to phenology values using <strong>TARGET_FID</strong>.</li>
+            <li>Species names are read from the <strong>Name</strong> field.</li>
+            <li>The right-side panel updates when a tree polygon is clicked.</li>
+            <li>The year selector changes which phenophase values are shown.</li>
+          </ul>
+        </div>
+
+        <div class="status-box mt-3" id="statusBox">
+          Loading shapefile and CSV data...
+        </div>
+
+        <div class="footer-note">
+          Click to see active pages:
+          <br>
+          <a href="https://kmnafee.github.io/Mod8FinalProject/" target="_blank">
+GitHub Pages Site
+</a> |
+<a href="https://github.com/kmnafee/Mod8FinalProject/blob/main/README.md" target="_blank">
+Repository README
+</a>
+        </div>
+      </div>
+    </aside>
+
+    <main class="map-shell">
+      <div id="loadingOverlay" class="loading-overlay">Loading project data...</div>
+
+      <div class="map-toolbar">
+        <button id="zoomAllBtn" class="toolbar-btn" type="button">Zoom to All Trees</button>
+        <button id="resetMapBtn" class="toolbar-btn" type="button">Reset View</button>
+      </div>
+
+      <div id="map"></div>
+
+      <div class="map-credit">
+        Base map by CARTO Dark Matter and OpenStreetMap. Phenology attributes are joined to tree polygons using <strong>TARGET_FID</strong>.
+      </div>
+    </main>
+
+    <aside class="panel panel-right">
+      <div class="panel-inner">
+        <h2 class="panel-title">Tree Information</h2>
+        <p class="panel-note">
+          Click a tree polygon on the map to view its species, ID, and year-specific phenophase values.
+        </p>
+
+        <div id="infoBox" class="card-block">
+          <div class="empty-state">
+            No tree selected yet. Click a polygon to inspect an individual tree.
+          </div>
+        </div>
+
+        <div class="card-block">
+          <h6>Phenophase Fields Shown</h6>
+          <ul class="mini-list">
+            <li>Greenup</li>
+            <li>Mid-Greenup</li>
+            <li>Maturity</li>
+            <li>Senescence</li>
+            <li>Mid-Senescence</li>
+            <li>Dormancy</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    const SHAPEFILE_PATH = "Data/TreePolygons.zip";
+    const CSV_PATH = "Data/Phenophase_Data.csv";
+    const UK_CENTER = [38.0387, -84.5044];
+    const DEFAULT_ZOOM = 16;
+
+    const map = L.map("map", { zoomControl: true }).setView(UK_CENTER, DEFAULT_ZOOM);
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+      subdomains: "abcd",
+      maxZoom: 20
+    }).addTo(map);
+
+
+    const infoBox = document.getElementById("infoBox");
+    const speciesSearch = document.getElementById("speciesSearch");
+    const statusBox = document.getElementById("statusBox");
+    const dynamicLegend = document.getElementById("dynamicLegend");
+    const loadingOverlay = document.getElementById("loadingOverlay");
+
+    const metricTotal = document.getElementById("metricTotal");
+    const metricVisible = document.getElementById("metricVisible");
+    const metricSpecies = document.getElementById("metricSpecies");
+    const metricYear = document.getElementById("metricYear");
+
+    const clearSearchBtn = document.getElementById("clearSearchBtn");
+    const zoomAllBtn = document.getElementById("zoomAllBtn");
+    const resetMapBtn = document.getElementById("resetMapBtn");
+
+    let treeLayer = null;
+    let joinedFeatures = [];
+    let selectedFeature = null;
+    let selectedLayer = null;
+    let speciesColorMap = {};
+
+    const colorPalette = [
+      "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#e6ab02",
+      "#a6761d", "#666666", "#1f78b4", "#b2df8a", "#fb9a99", "#fdbf6f",
+      "#cab2d6", "#6a3d9a", "#ff7f00", "#b15928", "#2ca25f", "#de2d26"
+    ];
+
+    function getSelectedYear() {
+      const checked = document.querySelector('input[name="year"]:checked');
+      return checked ? checked.value : "2023";
+    }
+
+    function normalizeKey(val) {
+      if (val === null || val === undefined) return "";
+      return String(val).trim();
+    }
+
+    function safeNumber(val) {
+      if (val === null || val === undefined || val === "") return null;
+      const n = Number(val);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function getFeatureName(props) {
+      return props.Name || "Unknown";
+    }
+
+    function getFeatureID(props) {
+      return props.TARGET_FID ?? "N/A";
+    }
+
+    function getSearchText(props) {
+      return (props.Name || "").toLowerCase().trim();
+    }
+
+    function filterFeature(props) {
+      const q = speciesSearch.value.trim().toLowerCase();
+      if (!q) return true;
+      return getSearchText(props).includes(q);
+    }
+
+    function getAllPhaseValuesForYear(props, year) {
+      return {
+        Greenup: safeNumber(props[`Greenup ${year}`]),
+        MidGreenup: safeNumber(props[`MidGreenup ${year}`]),
+        Maturity: safeNumber(props[`Maturity ${year}`]),
+        Senescence: safeNumber(props[`Senescence ${year}`]),
+        MidSenescence: safeNumber(props[`MidSenescence ${year}`]),
+        Dormancy: safeNumber(props[`Dormancy ${year}`])
+      };
+    }
+
+    function buildSpeciesColorMap(features) {
+      const uniqueSpecies = [...new Set(
+        features
+          .map(f => getFeatureName(f.properties))
+          .filter(name => name && name.trim() !== "")
+      )].sort((a, b) => a.localeCompare(b));
+
+      speciesColorMap = {};
+      uniqueSpecies.forEach((name, i) => {
+        speciesColorMap[name] = colorPalette[i % colorPalette.length];
+      });
+    }
+
+    function getSpeciesColor(name) {
+      return speciesColorMap[name] || "#8c8c8c";
+    }
+
+    function buildLegend() {
+      const speciesList = Object.keys(speciesColorMap).sort((a, b) => a.localeCompare(b));
+
+      dynamicLegend.innerHTML = speciesList.map(name => `
+        <div class="legend-row">
+          <span class="legend-swatch" style="background:${getSpeciesColor(name)};"></span>
+          <span>${name}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderInfo(props) {
+      const year = getSelectedYear();
+      const vals = getAllPhaseValuesForYear(props, year);
+
+      infoBox.innerHTML = `
+        <h6 style="margin:0 0 10px; font-size:1.02rem; font-weight:800; color:var(--brand-dark);">
+          ${getFeatureName(props)}
+        </h6>
+
+        <div class="metrics-grid" style="margin-top:0;">
+          <div class="metric">
+            <div class="metric-label">TARGET_FID</div>
+            <div class="metric-value">${getFeatureID(props)}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Selected Year</div>
+            <div class="metric-value">${year}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px; font-weight:800; font-size:0.92rem;">Phenophase Values</div>
+        <div class="metrics-grid">
+          <div class="metric">
+            <div class="metric-label">Greenup</div>
+            <div class="metric-value">${vals.Greenup ?? "N/A"}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Mid-Greenup</div>
+            <div class="metric-value">${vals.MidGreenup ?? "N/A"}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Maturity</div>
+            <div class="metric-value">${vals.Maturity ?? "N/A"}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Senescence</div>
+            <div class="metric-value">${vals.Senescence ?? "N/A"}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Mid-Senescence</div>
+            <div class="metric-value">${vals.MidSenescence ?? "N/A"}</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Dormancy</div>
+            <div class="metric-value">${vals.Dormancy ?? "N/A"}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function baseStyle(feature) {
+      const props = feature.properties;
+      const visible = filterFeature(props);
+      const name = getFeatureName(props);
+
+      return {
+        color: visible ? "#ffffff" : "transparent",
+        weight: visible ? 0.8 : 0,
+        fillColor: getSpeciesColor(name),
+        fillOpacity: visible ? 0.78 : 0
+      };
+    }
+
+    function highlightSelected(layer) {
+      if (!layer) return;
+      layer.setStyle({
+        weight: 2.6,
+        color: "#111111",
+        fillOpacity: 0.95
+      });
+      if (layer.bringToFront) layer.bringToFront();
+    }
+
+    function refreshMetrics() {
+      const visibleCount = joinedFeatures.filter(f => filterFeature(f.properties)).length;
+      metricTotal.textContent = joinedFeatures.length || "0";
+      metricVisible.textContent = visibleCount || "0";
+      metricSpecies.textContent = Object.keys(speciesColorMap).length || "0";
+      metricYear.textContent = getSelectedYear();
+    }
+
+    function zoomToVisibleFeatures() {
+      if (!treeLayer) return;
+
+      const visibleLayers = [];
+      treeLayer.eachLayer(layer => {
+        if (filterFeature(layer.feature.properties)) {
+          visibleLayers.push(layer);
+        }
+      });
+
+      if (visibleLayers.length > 0) {
+        const group = L.featureGroup(visibleLayers);
+        map.fitBounds(group.getBounds(), { padding: [30, 30] });
+      }
+    }
+
+    function refreshMap() {
+      if (!joinedFeatures.length) return;
+
+      if (treeLayer) {
+        treeLayer.remove();
+      }
+
+      selectedLayer = null;
+
+      treeLayer = L.geoJSON(joinedFeatures, {
+        style: baseStyle,
+        onEachFeature: (feature, layer) => {
+          const props = feature.properties;
+          const name = getFeatureName(props);
+          const id = getFeatureID(props);
+          const year = getSelectedYear();
+
+          layer.bindPopup(`
+            <div class="popup-title">${name}</div>
+            <div><strong>TARGET_FID:</strong> ${id}</div>
+            <div><strong>Year shown in panel:</strong> ${year}</div>
+          `);
+
+          layer.on("click", () => {
+            selectedFeature = feature;
+            selectedLayer = layer;
+            renderInfo(props);
+            treeLayer.eachLayer(l => treeLayer.resetStyle(l));
+            highlightSelected(layer);
+          });
+
+          layer.on("mouseover", function () {
+            if (!filterFeature(props)) return;
+            this.setStyle({
+              weight: 2,
+              color: "#2f2f2f",
+              fillOpacity: 0.92
+            });
+          });
+
+          layer.on("mouseout", function () {
+            treeLayer.resetStyle(this);
+            if (selectedLayer && this === selectedLayer) {
+              highlightSelected(this);
+            }
+          });
+        }
+      }).addTo(map);
+
+      refreshMetrics();
+      zoomToVisibleFeatures();
+
+      if (selectedFeature) {
+        renderInfo(selectedFeature.properties);
+
+        treeLayer.eachLayer(layer => {
+          if (normalizeKey(layer.feature.properties.TARGET_FID) === normalizeKey(selectedFeature.properties.TARGET_FID)) {
+            selectedLayer = layer;
+            highlightSelected(layer);
+          }
+        });
+      }
+
+      const visibleCount = joinedFeatures.filter(f => filterFeature(f.properties)).length;
+      statusBox.innerHTML = `
+        Loaded <strong>${joinedFeatures.length}</strong> tree polygons.<br>
+        Showing <strong>${visibleCount}</strong> matching features.<br>
+        Species categories: <strong>${Object.keys(speciesColorMap).length}</strong>.
+      `;
+    }
+
+    function loadCSV(url) {
+      return new Promise((resolve, reject) => {
+        Papa.parse(url, {
+          download: true,
+          header: true,
+          dynamicTyping: false,
+          skipEmptyLines: true,
+          complete: results => resolve(results.data),
+          error: err => reject(err)
+        });
+      });
+    }
+
+    async function loadShapefile(url) {
+      return await shp(url);
+    }
+
+    function joinData(geojson, csvRows) {
+      const csvLookup = new Map();
+
+      csvRows.forEach(row => {
+        const key = normalizeKey(row.TARGET_FID);
+        if (key) csvLookup.set(key, row);
+      });
+
+      geojson.features.forEach(feature => {
+        const props = feature.properties || {};
+        const fid = normalizeKey(props.TARGET_FID);
+
+        if (csvLookup.has(fid)) {
+          const csvRow = csvLookup.get(fid);
+          feature.properties = {
+            ...props,
+            ...csvRow
+          };
+        }
+      });
+
+      return geojson.features;
+    }
+
+    async function init() {
+      try {
+        loadingOverlay.classList.remove("hidden");
+        statusBox.textContent = "Loading shapefile...";
+        const geojson = await loadShapefile(SHAPEFILE_PATH);
+
+        statusBox.textContent = "Loading CSV table...";
+        const csvRows = await loadCSV(CSV_PATH);
+
+        statusBox.textContent = "Joining shapefile and CSV using TARGET_FID...";
+        joinedFeatures = joinData(geojson, csvRows);
+
+        if (!joinedFeatures.length) {
+          throw new Error("No joined features found. Please check the shapefile and CSV structure.");
+        }
+
+        buildSpeciesColorMap(joinedFeatures);
+        buildLegend();
+        refreshMap();
+        loadingOverlay.classList.add("hidden");
+
+      } catch (error) {
+        console.error("Detailed error:", error);
+        loadingOverlay.classList.add("hidden");
+        statusBox.innerHTML = `
+          <span style="color:#b00020;"><strong>Error:</strong> ${error.message}</span><br>
+          Shapefile path: <code>${SHAPEFILE_PATH}</code><br>
+          CSV path: <code>${CSV_PATH}</code>
+        `;
+      }
+    }
+
+    document.querySelectorAll('input[name="year"]').forEach(radio => {
+      radio.addEventListener("change", () => {
+        metricYear.textContent = getSelectedYear();
+        if (selectedFeature) renderInfo(selectedFeature.properties);
+        refreshMap();
+      });
+    });
+
+    speciesSearch.addEventListener("input", refreshMap);
+
+    clearSearchBtn.addEventListener("click", () => {
+      speciesSearch.value = "";
+      refreshMap();
+    });
+
+    zoomAllBtn.addEventListener("click", () => {
+      zoomToVisibleFeatures();
+    });
+
+    resetMapBtn.addEventListener("click", () => {
+      map.setView(UK_CENTER, DEFAULT_ZOOM);
+    });
+
+    init();
+  </script>
+</body>
+</html>
